@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NZ XMLTV",
+        "description": "Choose a guide provider. 'Fixed channel IDs' keeps entities stable if channel numbers change.",
+        "data": { "provider": "Provider", "variant": "Guide type" }
+      },
+      "channels": {
+        "title": "Channels",
+        "data": { "channels": "Channels" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not download the guide from nzxmltv.com",
+      "no_channels": "The guide contained no channels"
+    },
+    "abort": { "already_configured": "This provider is already configured" }
+  },
+  "options": {
+    "step": {
+      "init": { "title": "Channels", "data": { "channels": "Channels" } }
+    },
+    "abort": { "cannot_connect": "Could not download the guide from nzxmltv.com" }
+  },
+  "selector": {
+    "variant": {
+      "options": {
+        "static": "Fixed channel IDs (recommended)",
+        "standard": "Standard",
+        "lite": "Lite (no images)"
+      }
+    }
+  }
+}
