@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import gzip
 import io
+import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
@@ -36,10 +36,30 @@ def _parse_time(value: str | None) -> datetime | None:
     return None
 
 
+# Largest guide (Sky) is ~65 MB uncompressed; leave generous headroom but stop bombs.
+MAX_XML_BYTES = 256 * 1024 * 1024
+
+
+class GuideError(Exception):
+    """The guide file was unsafe or malformed."""
+
+
 def _open(raw: bytes) -> io.BytesIO:
+    """Return a stream of the XML, bounding decompression and refusing entities."""
     if raw[:2] == b"\x1f\x8b":
-        raw = gzip.decompress(raw)
+        d = zlib.decompressobj(wbits=31)  # gzip container
+        raw = d.decompress(raw, MAX_XML_BYTES)
+        if d.unconsumed_tail:
+            raise GuideError("Guide exceeds maximum decompressed size")
+    # XMLTV only needs the standard DOCTYPE; custom entities enable expansion attacks.
+    if b"<!ENTITY" in raw[:65536]:
+        raise GuideError("Guide declares XML entities")
     return io.BytesIO(raw)
+
+
+def safe_url(value: str | None) -> str | None:
+    """Only pass through https URLs from the feed to the UI."""
+    return value if value and value.startswith("https://") else None
 
 
 def parse_channels(raw: bytes) -> dict[str, str]:
@@ -85,7 +105,7 @@ def parse_guide(
                             title=(elem.findtext("title") or "Unknown").strip(),
                             description=(elem.findtext("desc") or None),
                             category=(elem.findtext("category") or None),
-                            icon=icon.get("src") if icon is not None else None,
+                            icon=safe_url(icon.get("src")) if icon is not None else None,
                             episode=(elem.findtext("sub-title") or None),
                         )
                     )

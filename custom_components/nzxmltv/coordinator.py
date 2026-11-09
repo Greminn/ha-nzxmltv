@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from aiohttp import ClientTimeout
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -15,12 +17,24 @@ from .xmltv import Programme, parse_guide
 _LOGGER = logging.getLogger(__name__)
 
 
+MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024  # largest feed (Sky, gzipped) is ~6 MB
+
+
 async def async_download(hass: HomeAssistant, url: str) -> bytes:
-    """Download a guide file."""
+    """Download a guide file, refusing oversized responses."""
     session = async_get_clientsession(hass)
-    async with session.get(url, timeout=120) as resp:
+    async with session.get(url, timeout=ClientTimeout(total=120)) as resp:
         resp.raise_for_status()
-        return await resp.read()
+        if (resp.content_length or 0) > MAX_DOWNLOAD_BYTES:
+            raise ValueError("Guide download too large")
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in resp.content.iter_chunked(65536):
+            size += len(chunk)
+            if size > MAX_DOWNLOAD_BYTES:
+                raise ValueError("Guide download too large")
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 
 class NZXMLTVCoordinator(DataUpdateCoordinator[dict[str, list[Programme]]]):
